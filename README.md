@@ -1,25 +1,25 @@
 # new-ai-model-notifier
 
-OpenRouter に新しく載った OpenAI / Anthropic / Gemini のモデルを Discord Webhook に通知する。
+Posts new OpenAI / Anthropic / Gemini models listed on OpenRouter to Discord webhooks.
 
-- 対象: `openai/*`、`anthropic/*`、`google/gemini*`。`:free` / `:batch` などの派生はベース ID にまとめる。
-- 判定: `state/seen.json` にない ID を新規とみなす。状態ファイルがない初回は通知せず記録だけ行う。
-- 日本語化: 説明文は `claude-haiku-5-5` で120字以内に要約する。要約に失敗した場合は原文のまま送り、Embed のフッターに注記する。
-- 実行: GitHub Actions が15分ごとに実行し、`state/seen.json` を commit する。
+- Targets: `openai/*`, `anthropic/*`, and `google/gemini*`. Variants such as `:free` and `:batch` are folded into the base ID.
+- Detection: any ID not in `state/seen.json` is treated as new. When the state file does not exist (first run), models are recorded without notifying.
+- Japanese notifications: descriptions are summarized in Japanese (up to 120 characters) with `claude-haiku-5-5`. If summarization fails or no API key is set, the original English description is sent and the embed footer says so.
+- Schedule: GitHub Actions runs every 15 minutes and commits `state/seen.json`.
 
-## セットアップ
+## Setup
 
-1. Discord のチャンネルで Webhook を作る。
-2. リポジトリの Secret `DISCORD_WEBHOOK_URL` に Webhook URL を登録する。複数サーバーに送るときは、URL を改行区切りで並べる。全サーバーに同じ通知が届く。
-3. 説明文を日本語に要約する場合は、Secret `ANTHROPIC_API_KEY` に Claude API キーを登録する(未登録なら説明文は原文のまま通知する)。
-4. Actions の `notify` を手動実行して初回の基準を作る。
+1. Create a webhook in a Discord channel.
+2. Add the webhook URL to the repository secret `DISCORD_WEBHOOK_URL`. To post to multiple servers, put one URL per line; every server receives the same notification.
+3. To summarize descriptions in Japanese, add a Claude API key to the secret `ANTHROPIC_API_KEY`. Without it, descriptions are sent untranslated.
+4. Run the `notify` workflow manually once to record the initial baseline.
 
-## ローカル実行
+## Local run
 
 ```bash
 cargo run --release -- --dry-run --state /tmp/seen.json
 ```
 
-`--dry-run` は送信と状態更新をしない。通常実行には環境変数 `DISCORD_WEBHOOK_URL` が必要。
+`--dry-run` sends nothing to Discord and does not update the state file. It still calls the Claude API when `ANTHROPIC_API_KEY` is set. A normal run requires the environment variable `DISCORD_WEBHOOK_URL`.
 
-一部の Webhook だけ失敗したときは、状態を更新せずエラー終了する。次回の実行で全サーバーに再送されるため、成功済みのサーバーには重複して届く。
+If only some webhooks fail, the run exits with an error without updating the state. The next run resends to every server, so servers that already succeeded receive duplicates.
