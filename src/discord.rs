@@ -1,5 +1,5 @@
 use crate::openrouter::Model;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 use std::time::Duration;
 
@@ -76,14 +76,37 @@ pub async fn send(client: &reqwest::Client, webhook_url: &str, payloads: &[Value
         if i > 0 {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
+        // reqwest のエラーには URL(トークン入り)が含まれるため、外してから返す。
         client
             .post(webhook_url)
             .json(payload)
             .send()
             .await
+            .map_err(reqwest::Error::without_url)
             .context("Discord webhook request failed")?
             .error_for_status()
+            .map_err(reqwest::Error::without_url)
             .context("Discord webhook returned an error status")?;
+    }
+    Ok(())
+}
+
+/// 全 Webhook に送る。一部が失敗しても残りには送り、最後にまとめてエラーにする。
+/// URL にはトークンが含まれるため、エラーには番号だけを出す。
+pub async fn send_all(
+    client: &reqwest::Client,
+    webhook_urls: &[String],
+    payloads: &[Value],
+) -> Result<()> {
+    let mut failed = Vec::new();
+    for (i, url) in webhook_urls.iter().enumerate() {
+        if let Err(e) = send(client, url, payloads).await {
+            eprintln!("webhook #{}: {e:#}", i + 1);
+            failed.push(i + 1);
+        }
+    }
+    if !failed.is_empty() {
+        bail!("{} of {} webhooks failed: #{:?}", failed.len(), webhook_urls.len(), failed);
     }
     Ok(())
 }

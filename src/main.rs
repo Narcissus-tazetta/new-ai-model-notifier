@@ -87,9 +87,15 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let webhook = std::env::var("DISCORD_WEBHOOK_URL")
-        .context("DISCORD_WEBHOOK_URL is not set")?;
-    discord::send(&client, &webhook, &payloads).await?;
+    let webhooks: Vec<String> = std::env::var("DISCORD_WEBHOOK_URL")
+        .context("DISCORD_WEBHOOK_URL is not set")?
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+    if webhooks.is_empty() {
+        bail!("DISCORD_WEBHOOK_URL contains no URLs");
+    }
+    discord::send_all(&client, &webhooks, &payloads).await?;
 
     // 送信成功後にだけ更新する。失敗時は次回の実行で再送される。
     // 一時的に API から消えたモデルが再登場しても再通知しないよう、既知 ID は残す。
