@@ -7,6 +7,12 @@ use std::time::Duration;
 const EMBEDS_PER_MESSAGE: usize = 10;
 const DESCRIPTION_LIMIT: usize = 300;
 
+pub struct Entry {
+    pub model: Model,
+    pub description: String,
+    pub translated: bool,
+}
+
 fn per_million(price: &Option<String>) -> String {
     match price.as_deref().and_then(|s| s.parse::<f64>().ok()) {
         Some(p) if p >= 0.0 => format!("${:.2}", p * 1_000_000.0),
@@ -14,7 +20,19 @@ fn per_million(price: &Option<String>) -> String {
     }
 }
 
-fn truncate(s: &str, limit: usize) -> String {
+fn with_commas(n: u64) -> String {
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
+}
+
+pub fn truncate(s: &str, limit: usize) -> String {
     if s.chars().count() <= limit {
         return s.to_string();
     }
@@ -30,7 +48,8 @@ fn display_name(m: &Model) -> &str {
         .unwrap_or(&m.name)
 }
 
-pub fn embed(m: &Model) -> Value {
+pub fn embed(e: &Entry) -> Value {
+    let m = &e.model;
     let (provider, color) = match m.provider() {
         "openai" => ("OpenAI", 0x10a37f),
         "anthropic" => ("Anthropic", 0xd97757),
@@ -39,32 +58,36 @@ pub fn embed(m: &Model) -> Value {
     };
     let context = m
         .context_length
-        .map(|c| format!("{} tokens", c))
+        .map(|c| format!("{} トークン", with_commas(c)))
         .unwrap_or_else(|| "-".to_string());
     let (input, output) = match &m.pricing {
         Some(p) => (per_million(&p.prompt), per_million(&p.completion)),
         None => ("-".to_string(), "-".to_string()),
     };
-    json!({
+    let mut embed = json!({
         "title": display_name(m),
         "url": format!("https://openrouter.ai/{}", m.base_id()),
-        "description": truncate(m.description.as_deref().unwrap_or(""), DESCRIPTION_LIMIT),
+        "description": truncate(&e.description, DESCRIPTION_LIMIT),
         "color": color,
         "fields": [
-            { "name": "Provider", "value": provider, "inline": true },
-            { "name": "Context", "value": context, "inline": true },
-            { "name": "Input / 1M tokens", "value": input, "inline": true },
-            { "name": "Output / 1M tokens", "value": output, "inline": true },
+            { "name": "提供元", "value": provider, "inline": true },
+            { "name": "コンテキスト長", "value": context, "inline": true },
+            { "name": "入力 (100万トークン)", "value": input, "inline": true },
+            { "name": "出力 (100万トークン)", "value": output, "inline": true },
         ],
-    })
+    });
+    if !e.translated {
+        embed["footer"] = json!({ "text": "説明文は原文のまま(日本語化できませんでした)" });
+    }
+    embed
 }
 
-pub fn payloads(models: &[Model]) -> Vec<Value> {
-    models
+pub fn payloads(entries: &[Entry]) -> Vec<Value> {
+    entries
         .chunks(EMBEDS_PER_MESSAGE)
         .map(|chunk| {
             json!({
-                "content": "🆕 New models on OpenRouter",
+                "content": "🆕 OpenRouter に新しいモデルが登場",
                 "embeds": chunk.iter().map(embed).collect::<Vec<_>>(),
             })
         })

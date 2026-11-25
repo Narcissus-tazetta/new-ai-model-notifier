@@ -4,13 +4,15 @@ OpenRouter に新しく載った OpenAI / Anthropic / Gemini のモデルを Dis
 
 - 対象: `openai/*`、`anthropic/*`、`google/gemini*`。`:free` / `:batch` などの派生はベース ID にまとめる。
 - 判定: `state/seen.json` にない ID を新規とみなす。状態ファイルがない初回は通知せず記録だけ行う。
+- 日本語化: 説明文は `claude-haiku-5-5` で120字以内に要約する。要約に失敗した場合は原文のまま送り、Embed のフッターに注記する。
 - 実行: GitHub Actions が15分ごとに実行し、`state/seen.json` を commit する。
 
 ## セットアップ
 
 1. Discord のチャンネルで Webhook を作る。
 2. リポジトリの Secret `DISCORD_WEBHOOK_URL` に Webhook URL を登録する。複数サーバーに送るときは、URL を改行区切りで並べる。全サーバーに同じ通知が届く。
-3. Actions の `notify` を手動実行して初回の基準を作る。
+3. 説明文を日本語に要約する場合は、Secret `ANTHROPIC_API_KEY` に Claude API キーを登録する(未登録なら説明文は原文のまま通知する)。
+4. Actions の `notify` を手動実行して初回の基準を作る。
 
 ## ローカル実行
 

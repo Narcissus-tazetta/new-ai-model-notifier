@@ -22,6 +22,7 @@ jobs:
       - run: cargo run --release
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       - name: Commit state
         run: |
           if [ -z "$(git status --porcelain -- state/seen.json)" ]; then exit 0; fi

@@ -1,5 +1,6 @@
 mod discord;
 mod openrouter;
+mod translate;
 
 use anyhow::{bail, Context, Result};
 use std::collections::BTreeSet;
@@ -79,7 +80,29 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let payloads = discord::payloads(&new_models);
+    let translator = translate::Translator::from_env(client.clone());
+    if translator.is_none() {
+        eprintln!("ANTHROPIC_API_KEY is not set; descriptions are sent untranslated");
+    }
+    let mut entries = Vec::with_capacity(new_models.len());
+    for model in new_models {
+        let original = model.description.clone().unwrap_or_default();
+        let (description, translated) = match (&translator, original.is_empty()) {
+            (Some(t), false) => match t.to_japanese(&original).await {
+                Ok(ja) => (ja, true),
+                Err(e) => {
+                    eprintln!("translation failed for {}: {e:#}", model.id);
+                    (original, false)
+                }
+            },
+            // 説明文が空なら訳すものがないので、注記も付けない。
+            (_, true) => (original, true),
+            (None, false) => (original, false),
+        };
+        entries.push(discord::Entry { model, description, translated });
+    }
+
+    let payloads = discord::payloads(&entries);
     if args.dry_run {
         for p in &payloads {
             println!("{}", serde_json::to_string_pretty(p)?);
